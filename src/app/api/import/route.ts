@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { importLeads, readDB } from "@/lib/db";
-import { importFromGoogleSheets, syncToGoogleSheets } from "@/lib/googleSheets";
+import { importLeads } from "@/lib/db";
+import { importFromGoogleSheets } from "@/lib/googleSheets";
 
 function parseCsvLine(line: string) {
   const values: string[] = [];
@@ -74,12 +74,5 @@ export async function POST(request: Request) {
   }
 
   const upserted = await importLeads(records);
-  try {
-    const db = await readDB();
-    await syncToGoogleSheets(db.leads, db.deletedLeads);
-  } catch (error) {
-    console.error("Google Sheets sync failed:", error);
-  }
-
   return NextResponse.json({ ok: true, upserted });
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createLead, readDB } from "@/lib/db";
 import { LEAD_STATUSES } from "@/lib/types";
-import { syncToGoogleSheets } from "@/lib/googleSheets";
 
 export async function GET() {
   const db = await readDB();
@@ -26,13 +25,6 @@ export async function POST(request: Request) {
     notes: String(body.notes ?? ""),
     status,
   });
-
-  try {
-    const db = await readDB();
-    await syncToGoogleSheets(db.leads, db.deletedLeads);
-  } catch (error) {
-    console.error("Google Sheets sync failed:", error);
-  }
 
   return NextResponse.json(lead, { status: 201 });
 }

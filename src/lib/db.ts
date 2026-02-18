@@ -2,6 +2,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { CrmDB, DeletedLead, Lead, LeadStatus } from "@/lib/types";
+import {
+  isGoogleSheetsConfigured,
+  readGoogleSheetsDB,
+  syncToGoogleSheets,
+} from "@/lib/googleSheets";
 
 const initialLeads: Lead[] = [
   {
@@ -52,12 +57,22 @@ async function ensureDB() {
 }
 
 export async function readDB(): Promise<CrmDB> {
+  if (isGoogleSheetsConfigured()) {
+    const db = await readGoogleSheetsDB();
+    if (db) {
+      return db;
+    }
+  }
   const dbPath = await ensureDB();
   const content = await readFile(dbPath, "utf8");
   return JSON.parse(content) as CrmDB;
 }
 
 export async function writeDB(db: CrmDB) {
+  if (isGoogleSheetsConfigured()) {
+    await syncToGoogleSheets(db.leads, db.deletedLeads);
+    return;
+  }
   const dbPath = await ensureDB();
   await writeFile(dbPath, JSON.stringify(db, null, 2), "utf8");
 }

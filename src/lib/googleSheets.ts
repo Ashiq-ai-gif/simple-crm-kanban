@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { DeletedLead, Lead } from "@/lib/types";
+import { CrmDB, DeletedLead, Lead } from "@/lib/types";
 
 type SheetConfig = {
   email: string;
@@ -23,6 +23,41 @@ function getConfig(): SheetConfig | null {
     sheetId,
     leadsTab: process.env.GOOGLE_SHEET_LEADS_TAB ?? "Leads",
     deletedTab: process.env.GOOGLE_SHEET_DELETED_TAB ?? "Deleted",
+  };
+}
+
+function getSheetsClient(config: SheetConfig, readonly = false) {
+  const auth = new google.auth.JWT({
+    email: config.email,
+    key: config.privateKey,
+    scopes: readonly
+      ? ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+      : ["https://www.googleapis.com/auth/spreadsheets"],
+  });
+  return google.sheets({ version: "v4", auth });
+}
+
+function normalizeLeadRow(row: string[]): Lead {
+  const now = new Date().toISOString();
+  return {
+    id: row[0] ?? "",
+    name: row[1] ?? "",
+    email: row[2] ?? "",
+    phone: row[3] ?? "",
+    company: row[4] ?? "",
+    status: (row[5] as Lead["status"]) ?? "New",
+    notes: row[6] ?? "",
+    createdAt: row[7] ?? now,
+    updatedAt: row[8] ?? now,
+  };
+}
+
+function normalizeDeletedRow(row: string[]): DeletedLead {
+  const now = new Date().toISOString();
+  const lead = normalizeLeadRow(row);
+  return {
+    ...lead,
+    deletedAt: row[9] ?? now,
   };
 }
 
@@ -86,18 +121,41 @@ export function isGoogleSheetsConfigured() {
   return Boolean(getConfig());
 }
 
+export async function readGoogleSheetsDB(): Promise<CrmDB | null> {
+  const config = getConfig();
+  if (!config) {
+    return null;
+  }
+
+  const sheets = getSheetsClient(config, true);
+  const [leadsResponse, deletedResponse] = await Promise.all([
+    sheets.spreadsheets.values.get({
+      spreadsheetId: config.sheetId,
+      range: `${config.leadsTab}!A2:I`,
+    }),
+    sheets.spreadsheets.values.get({
+      spreadsheetId: config.sheetId,
+      range: `${config.deletedTab}!A2:J`,
+    }),
+  ]);
+
+  const leads = (leadsResponse.data.values ?? [])
+    .map((row) => normalizeLeadRow(row))
+    .filter((lead) => Boolean(lead.email));
+  const deletedLeads = (deletedResponse.data.values ?? [])
+    .map((row) => normalizeDeletedRow(row))
+    .filter((lead) => Boolean(lead.email));
+
+  return { leads, deletedLeads };
+}
+
 export async function syncToGoogleSheets(leads: Lead[], deletedLeads: DeletedLead[]) {
   const config = getConfig();
   if (!config) {
     return { ok: false, reason: "Google Sheets credentials are not configured." };
   }
 
-  const auth = new google.auth.JWT({
-    email: config.email,
-    key: config.privateKey,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-  const sheets = google.sheets({ version: "v4", auth });
+  const sheets = getSheetsClient(config);
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: config.sheetId,
@@ -122,12 +180,7 @@ export async function importFromGoogleSheets() {
     return null;
   }
 
-  const auth = new google.auth.JWT({
-    email: config.email,
-    key: config.privateKey,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  });
-  const sheets = google.sheets({ version: "v4", auth });
+  const sheets = getSheetsClient(config, true);
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: config.sheetId,
     range: `${config.leadsTab}!A2:I`,
