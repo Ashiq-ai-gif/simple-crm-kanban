@@ -19,34 +19,102 @@ const emptyForm = {
   status: "New" as LeadStatus,
 };
 
+const ADMIN_PASSWORD = "Admin@6282";
+const AUTH_KEY = "bch-crm-auth";
+const CACHE_KEY = "bch-crm-leads-cache";
+const CACHE_TTL_MS = 60_000;
+
+function readCache() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const raw = sessionStorage.getItem(CACHE_KEY);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as { at: number; leads: Lead[] };
+    if (Date.now() - parsed.at > CACHE_TTL_MS) {
+      return null;
+    }
+    return parsed.leads;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(leads: Lead[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), leads }));
+}
+
 export default function Home() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionBusy, setActionBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [csvInput, setCsvInput] = useState("");
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [showCsvModal, setShowCsvModal] = useState(false);
   const [mobileStage, setMobileStage] = useState<MobileStage>("All");
+  const [mobileAnimKey, setMobileAnimKey] = useState(0);
+  const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
 
-  async function loadLeads() {
-    const response = await fetch("/api/leads");
+  const [authChecked, setAuthChecked] = useState(false);
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [password, setPassword] = useState("");
+
+  async function loadLeads(options?: { quiet?: boolean }) {
+    if (!options?.quiet) {
+      setLoading(true);
+    }
+    const response = await fetch("/api/leads", { cache: "no-store" });
     const payload = (await response.json()) as DbPayload;
     setLeads(payload.leads);
+    writeCache(payload.leads);
+    setLoading(false);
   }
 
   useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const token = sessionStorage.getItem(AUTH_KEY);
+      if (token === "ok") {
+        setIsAuthed(true);
+      }
+      setAuthChecked(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthed) {
+      return;
+    }
+
     async function init() {
+      const cached = readCache();
+      if (cached && cached.length > 0) {
+        setLeads(cached);
+        setLoading(false);
+        loadLeads({ quiet: true }).catch(() => {
+          setMessage("Using cached data. Refresh failed.");
+        });
+        return;
+      }
+
       try {
         await loadLeads();
       } catch {
         setMessage("Failed to load CRM data.");
-      } finally {
         setLoading(false);
       }
     }
+
     void init();
-  }, []);
+  }, [isAuthed]);
 
   const grouped = useMemo(() => {
     return LEAD_STATUSES.reduce(
@@ -65,43 +133,82 @@ export default function Home() {
     return leads.filter((lead) => lead.status === mobileStage);
   }, [leads, mobileStage]);
 
+  async function onLogin(event: FormEvent) {
+    event.preventDefault();
+    if (password !== ADMIN_PASSWORD) {
+      setMessage("Invalid password");
+      return;
+    }
+    sessionStorage.setItem(AUTH_KEY, "ok");
+    setIsAuthed(true);
+    setPassword("");
+    setMessage("");
+  }
+
   async function onCreateLead(event: FormEvent) {
     event.preventDefault();
-    setMessage("");
-    setLoading(true);
+    setActionBusy(true);
     const response = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
+
     if (!response.ok) {
-      setLoading(false);
+      setActionBusy(false);
       setMessage("Create failed. Name and email are required.");
       return;
     }
+
+    const created = (await response.json()) as Lead;
+    const nextLeads = [created, ...leads];
+    setLeads(nextLeads);
+    writeCache(nextLeads);
     setForm(emptyForm);
-    await loadLeads();
-    setLoading(false);
     setShowLeadModal(false);
+    setActionBusy(false);
     setMessage("Lead created.");
+    loadLeads({ quiet: true }).catch(() => undefined);
   }
 
   async function onChangeStatus(id: string, status: LeadStatus) {
-    setLoading(true);
-    await fetch(`/api/leads/${id}`, {
+    const previous = leads;
+    setUpdatingLeadId(id);
+    const optimistic = leads.map((lead) =>
+      lead.id === id ? { ...lead, status, updatedAt: new Date().toISOString() } : lead,
+    );
+    setLeads(optimistic);
+    writeCache(optimistic);
+
+    const response = await fetch(`/api/leads/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    await loadLeads();
-    setLoading(false);
+
+    if (!response.ok) {
+      setLeads(previous);
+      writeCache(previous);
+      setMessage("Stage update failed.");
+    }
+
+    setTimeout(() => setUpdatingLeadId(null), 260);
   }
 
   async function onDeleteLead(id: string) {
-    setLoading(true);
-    await fetch(`/api/leads/${id}`, { method: "DELETE" });
-    await loadLeads();
-    setLoading(false);
+    const previous = leads;
+    const optimistic = leads.filter((lead) => lead.id !== id);
+    setLeads(optimistic);
+    writeCache(optimistic);
+
+    const response = await fetch(`/api/leads/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      setLeads(previous);
+      writeCache(previous);
+      setMessage("Delete failed.");
+      return;
+    }
+
     setMessage("Lead deleted and synced.");
   }
 
@@ -110,8 +217,10 @@ export default function Home() {
   }
 
   async function onSyncGoogleSheets() {
+    setActionBusy(true);
     const response = await fetch("/api/export?toGoogleSheet=1");
     const payload = await response.json();
+    setActionBusy(false);
     if (payload.ok) {
       setMessage("CRM data synced to Google Sheet.");
       return;
@@ -120,7 +229,7 @@ export default function Home() {
   }
 
   async function onImportCsv() {
-    setLoading(true);
+    setActionBusy(true);
     const response = await fetch("/api/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -128,32 +237,35 @@ export default function Home() {
     });
     const payload = await response.json();
     if (!response.ok) {
-      setLoading(false);
+      setActionBusy(false);
       setMessage(payload.error ?? "Import failed.");
       return;
     }
+
+    await loadLeads({ quiet: true });
     setCsvInput("");
-    await loadLeads();
-    setLoading(false);
     setShowCsvModal(false);
+    setActionBusy(false);
     setMessage(`Imported ${payload.upserted} records.`);
   }
 
   async function onImportFromSheet() {
-    setLoading(true);
+    setActionBusy(true);
     const response = await fetch("/api/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "googleSheet" }),
     });
     const payload = await response.json();
+
     if (!response.ok) {
-      setLoading(false);
+      setActionBusy(false);
       setMessage(payload.error ?? "Google Sheet import failed.");
       return;
     }
-    await loadLeads();
-    setLoading(false);
+
+    await loadLeads({ quiet: true });
+    setActionBusy(false);
     setMessage(`Imported ${payload.upserted} records from Google Sheet.`);
   }
 
@@ -169,15 +281,44 @@ export default function Home() {
     reader.readAsText(file);
   }
 
+  function onMobileStageChange(value: MobileStage) {
+    setMobileStage(value);
+    setMobileAnimKey((prev) => prev + 1);
+  }
+
   const totalLeads = leads.length;
+
+  if (!authChecked) {
+    return null;
+  }
+
+  if (!isAuthed) {
+    return (
+      <main className="login-shell">
+        <section className="login-card">
+          <h1>BCH CRM</h1>
+          <form onSubmit={onLogin} className="login-form">
+            <input
+              type="password"
+              placeholder="Enter password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+            <button className="primary-btn" type="submit">
+              Login
+            </button>
+          </form>
+          {message && <p className="message">{message}</p>}
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
       <section className="top-bar">
-        <div>
-          <h1>Simple CRM</h1>
-          <p>Kanban on desktop, stage-filtered list on mobile.</p>
-        </div>
+        <h1>BCH CRM</h1>
         <div className="count-chip">{totalLeads} Leads</div>
       </section>
 
@@ -200,102 +341,101 @@ export default function Home() {
       </section>
 
       {message && <p className="message">{message}</p>}
+      {loading && <p className="loading-text">Loading leads...</p>}
 
-      {loading ? (
-        <p className="loading-text">Loading leads...</p>
-      ) : (
-        <>
-          <section className="kanban desktop-only">
-            {LEAD_STATUSES.map((status) => (
-              <article key={status} className="column">
-                <h3>
-                  <span>{status}</span>
-                  <span>{grouped[status].length}</span>
-                </h3>
-                <div className="cards">
-                  {grouped[status].map((lead) => (
-                    <div key={lead.id} className="card">
-                      <div className="card-head">
-                        <h4>{lead.name}</h4>
-                        <button className="danger-btn" onClick={() => onDeleteLead(lead.id)}>
-                          Delete
-                        </button>
-                      </div>
-                      <p>{lead.company || "No company"}</p>
-                      <p>{lead.email}</p>
-                      {lead.phone && <p>{lead.phone}</p>}
-                      <select
-                        value={lead.status}
-                        onChange={(event) =>
-                          onChangeStatus(lead.id, event.target.value as LeadStatus)
-                        }
-                      >
-                        {LEAD_STATUSES.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </section>
-
-          <section className="mobile-only mobile-list-wrap">
-            <div className="mobile-filter-bar">
-              <label htmlFor="stage-filter">Stage</label>
-              <select
-                id="stage-filter"
-                value={mobileStage}
-                onChange={(event) => setMobileStage(event.target.value as MobileStage)}
-              >
-                <option value="All">All</option>
-                {LEAD_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <section className="mobile-list">
-              {mobileLeads.length === 0 && (
-                <p className="empty-state">No leads in this stage.</p>
-              )}
-              {mobileLeads.map((lead) => (
-                <article key={lead.id} className="list-item">
-                  <div>
+      <section className="kanban desktop-only">
+        {LEAD_STATUSES.map((status) => (
+          <article key={status} className="column">
+            <h3>
+              <span>{status}</span>
+              <span>{grouped[status].length}</span>
+            </h3>
+            <div className="cards">
+              {grouped[status].map((lead) => (
+                <div
+                  key={lead.id}
+                  className={`card card-animate ${updatingLeadId === lead.id ? "card-updating" : ""}`}
+                >
+                  <div className="card-head">
                     <h4>{lead.name}</h4>
-                    <p>{lead.company || "No company"}</p>
-                    <small>{lead.email}</small>
+                    <button className="danger-btn" onClick={() => onDeleteLead(lead.id)}>
+                      Delete
+                    </button>
                   </div>
+                  <p>{lead.company || "No company"}</p>
+                  <p>{lead.email}</p>
+                  {lead.phone && <p>{lead.phone}</p>}
                   <select
                     value={lead.status}
                     onChange={(event) =>
                       onChangeStatus(lead.id, event.target.value as LeadStatus)
                     }
                   >
-                    {LEAD_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
+                    {LEAD_STATUSES.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
                       </option>
                     ))}
                   </select>
-                  <button className="danger-btn" onClick={() => onDeleteLead(lead.id)}>
-                    Delete
-                  </button>
-                </article>
+                </div>
               ))}
-            </section>
-          </section>
-        </>
-      )}
+            </div>
+          </article>
+        ))}
+      </section>
+
+      <section className="mobile-only mobile-list-wrap">
+        <div className="mobile-filter-bar">
+          <label htmlFor="stage-filter">Stage</label>
+          <select
+            id="stage-filter"
+            value={mobileStage}
+            onChange={(event) => onMobileStageChange(event.target.value as MobileStage)}
+          >
+            <option value="All">All</option>
+            {LEAD_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <section key={mobileAnimKey} className="mobile-list mobile-animate">
+          {mobileLeads.length === 0 && <p className="empty-state">No leads in this stage.</p>}
+          {mobileLeads.map((lead) => (
+            <article
+              key={lead.id}
+              className={`list-item ${updatingLeadId === lead.id ? "card-updating" : ""}`}
+            >
+              <div>
+                <h4>{lead.name}</h4>
+                <p>{lead.company || "No company"}</p>
+                <small>{lead.email}</small>
+              </div>
+              <select
+                value={lead.status}
+                onChange={(event) =>
+                  onChangeStatus(lead.id, event.target.value as LeadStatus)
+                }
+              >
+                {LEAD_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+              <button className="danger-btn" onClick={() => onDeleteLead(lead.id)}>
+                Delete
+              </button>
+            </article>
+          ))}
+        </section>
+      </section>
 
       {showLeadModal && (
         <div className="modal-backdrop" onClick={() => setShowLeadModal(false)}>
-          <div className="modal" onClick={(event) => event.stopPropagation()}>
+          <div className="modal modal-animate" onClick={(event) => event.stopPropagation()}>
             <div className="modal-head">
               <h2>New Lead</h2>
               <button className="text-btn" onClick={() => setShowLeadModal(false)}>
@@ -342,7 +482,7 @@ export default function Home() {
                 value={form.notes}
                 onChange={(event) => setForm({ ...form, notes: event.target.value })}
               />
-              <button className="primary-btn" type="submit">
+              <button className="primary-btn" type="submit" disabled={actionBusy}>
                 Save Lead
               </button>
             </form>
@@ -352,7 +492,7 @@ export default function Home() {
 
       {showCsvModal && (
         <div className="modal-backdrop" onClick={() => setShowCsvModal(false)}>
-          <div className="modal" onClick={(event) => event.stopPropagation()}>
+          <div className="modal modal-animate" onClick={(event) => event.stopPropagation()}>
             <div className="modal-head">
               <h2>Import CSV</h2>
               <button className="text-btn" onClick={() => setShowCsvModal(false)}>
@@ -366,7 +506,7 @@ export default function Home() {
                 onChange={(event) => setCsvInput(event.target.value)}
                 placeholder="Required columns: name,email. Optional: phone,company,status,notes"
               />
-              <button className="primary-btn" onClick={onImportCsv}>
+              <button className="primary-btn" onClick={onImportCsv} disabled={actionBusy}>
                 Import CSV
               </button>
             </div>
