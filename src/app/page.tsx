@@ -13,6 +13,7 @@ type SoftwareType =
 type ProposalInput = {
   clientName: string;
   businessName: string;
+  quickPrompt: string;
   businessOverview: string;
   businessActivities: string;
   softwareType: SoftwareType;
@@ -165,6 +166,7 @@ const stackByType: Record<SoftwareType, { layer: string; technology: string }[]>
 const defaultInput: ProposalInput = {
   clientName: "",
   businessName: "",
+  quickPrompt: "",
   businessOverview: "",
   businessActivities: "",
   softwareType: "Web Application",
@@ -230,6 +232,10 @@ export default function Home() {
 
   async function onGenerate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!input.quickPrompt.trim() && !input.businessOverview.trim()) {
+      setStatusMessage("Please add a quick prompt or business overview.");
+      return;
+    }
     setIsGenerating(true);
     setStatusMessage("Generating AI proposal...");
     setAiProposal(null);
@@ -302,12 +308,20 @@ export default function Home() {
           </label>
 
           <label className="full">
+            Quick Prompt (optional, AI will expand it)
+            <textarea
+              value={input.quickPrompt}
+              onChange={(event) => updateField("quickPrompt", event.target.value)}
+              placeholder="Example: Build a CRM for real-estate brokers with lead tracking, WhatsApp follow-up, deal pipeline, and reporting."
+            />
+          </label>
+
+          <label className="full">
             What does the business do?
             <textarea
               value={input.businessOverview}
               onChange={(event) => updateField("businessOverview", event.target.value)}
               placeholder="Describe the business and current challenges."
-              required
             />
           </label>
 
@@ -317,7 +331,6 @@ export default function Home() {
               value={input.businessActivities}
               onChange={(event) => updateField("businessActivities", event.target.value)}
               placeholder={"Inventory management\nOrder tracking\nCustomer support"}
-              required
             />
           </label>
 
@@ -365,7 +378,6 @@ export default function Home() {
               value={input.targetUsers}
               onChange={(event) => updateField("targetUsers", event.target.value)}
               placeholder="Store managers, admins, delivery team"
-              required
             />
           </label>
 
@@ -375,7 +387,6 @@ export default function Home() {
               value={input.keyFeatures}
               onChange={(event) => updateField("keyFeatures", event.target.value)}
               placeholder={"User login and roles\nDashboard\nOrder workflow automation"}
-              required
             />
           </label>
 
@@ -385,7 +396,6 @@ export default function Home() {
               value={input.projectFlow}
               onChange={(event) => updateField("projectFlow", event.target.value)}
               placeholder={"Home Screen\nLogin\nDashboard\nModule screen\nCheckout / completion"}
-              required
             />
           </label>
 
