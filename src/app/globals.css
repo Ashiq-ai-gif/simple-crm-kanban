@@ -66,6 +66,34 @@ textarea {
   padding: 1.2rem 1.3rem;
 }
 
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.65rem;
+}
+
+.brand-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #dbe7f3;
+  padding: 0.2rem;
+}
+
+.brand-name {
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: #12253c;
+}
+
+.brand-tagline {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
 .hero-kicker {
   color: var(--accent-deep);
   font-weight: 700;
@@ -160,12 +188,34 @@ textarea {
 }
 
 .paper-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
   border-bottom: 2px solid #e2ebf5;
   padding-bottom: 0.7rem;
 }
 
 .paper-head h2 {
   margin-bottom: 0.35rem;
+}
+
+.paper-brand {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  max-width: 60%;
+}
+
+.paper-meta {
+  text-align: right;
+  max-width: 40%;
+}
+
+.company-details {
+  margin-top: 0.4rem;
+  color: #2a3b53;
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .proposal-paper h3 {
@@ -254,6 +304,19 @@ textarea {
 
   .proposal-shell {
     width: min(1180px, 95vw);
+  }
+
+  .paper-head {
+    flex-direction: column;
+  }
+
+  .paper-meta {
+    text-align: left;
+    max-width: 100%;
+  }
+
+  .paper-brand {
+    max-width: 100%;
   }
 }
 

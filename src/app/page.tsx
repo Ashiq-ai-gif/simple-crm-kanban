@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useMemo, useState } from "react";
 
 type SoftwareType =
@@ -47,6 +48,13 @@ type GenerateResponse = {
   ai?: AiProposal;
   error?: string;
 };
+
+const COMPANY_NAME = "Yadhurtech";
+const COMPANY_TAGLINE = "Empowering business with smart digital and solutions.";
+const COMPANY_ADDRESS = "7-8/2 vgp lane, Dharmaraja koil street, Saidapet, Chennai-600015.";
+const COMPANY_PHONE = "9176002530";
+const COMPANY_EMAIL = "info@yadhurtech.com";
+const COMPANY_WEBSITE = "yadhurtech.com";
 
 const EDGE_FUNCTION_URL =
   process.env.NEXT_PUBLIC_SUPABASE_FUNCTION_URL ??
@@ -276,6 +284,20 @@ export default function Home() {
   return (
     <main className="proposal-shell">
       <header className="hero no-print">
+        <div className="brand-block">
+          <Image
+            src="/yadhurtech-logo.jpeg"
+            alt={`${COMPANY_NAME} logo`}
+            className="brand-logo"
+            width={64}
+            height={64}
+            priority
+          />
+          <div>
+            <p className="brand-name">{COMPANY_NAME}</p>
+            <p className="brand-tagline">{COMPANY_TAGLINE}</p>
+          </div>
+        </div>
         <p className="hero-kicker">Software Agency Quotation Builder</p>
         <h1>Client Discovery to Proposal PDF</h1>
         <p>
@@ -361,7 +383,7 @@ export default function Home() {
           </label>
 
           <label>
-            Total Budget (USD)
+            Total Budget (INR)
             <input
               type="number"
               min={1000}
@@ -427,11 +449,32 @@ export default function Home() {
 
           <article className="proposal-paper">
             <header className="paper-head">
-              <h2>Software Development Proposal</h2>
-              <p>
-                Prepared for <strong>{input.clientName}</strong> ({input.businessName})
-              </p>
-              {proposalId && <p>Proposal ID: #{proposalId}</p>}
+              <div className="paper-brand">
+                <Image
+                  src="/yadhurtech-logo.jpeg"
+                  alt={`${COMPANY_NAME} logo`}
+                  className="brand-logo"
+                  width={64}
+                  height={64}
+                />
+                <div>
+                  <p className="brand-name">{COMPANY_NAME}</p>
+                  <p className="brand-tagline">{COMPANY_TAGLINE}</p>
+                  <div className="company-details">
+                    <p>{COMPANY_ADDRESS}</p>
+                    <p>Phone: {COMPANY_PHONE}</p>
+                    <p>Email: {COMPANY_EMAIL}</p>
+                    <p>Website: {COMPANY_WEBSITE}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="paper-meta">
+                <h2>Software Development Proposal</h2>
+                <p>
+                  Prepared for <strong>{input.clientName}</strong> ({input.businessName})
+                </p>
+                {proposalId && <p>Proposal ID: #{proposalId}</p>}
+              </div>
             </header>
 
             <section>
