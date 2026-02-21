@@ -988,16 +988,16 @@ export default function Home() {
                 const total = crmLeads.length || 1;
                 const percent = Math.min(100, Math.round((filtered.length / total) * 100));
                 return (
-                <article key={stage} className="column">
-                  <div className="column-head">
-                    <h3>{stage}</h3>
-                    <span className="column-count">{filtered.length}</span>
-                  </div>
-                  <div className="column-bar">
-                    <span style={{ width: `${percent}%` }} />
-                  </div>
-                  <div className="cards">
-                    {filtered.map((lead) => (
+                  <article key={stage} className="column">
+                    <div className="column-head">
+                      <h3>{stage}</h3>
+                      <span className="column-count">{filtered.length}</span>
+                    </div>
+                    <div className="column-bar">
+                      <span style={{ width: `${percent}%` }} />
+                    </div>
+                    <div className="cards">
+                      {filtered.map((lead) => (
                         <div key={lead.id} className="card">
                           <div className="card-head">
                             <h4>{lead.name}</h4>
@@ -1020,8 +1020,9 @@ export default function Home() {
                           </select>
                         </div>
                       ))}
-                  </div>
-                </article>
+                    </div>
+                  </article>
+                );
               })}
             </section>
 
