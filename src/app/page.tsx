@@ -19,6 +19,7 @@ type ProposalInput = {
   businessActivities: string;
   softwareType: SoftwareType;
   serviceTypes: string[];
+  paymentTerms: string;
   targetUsers: string;
   keyFeatures: string;
   projectFlow: string;
@@ -56,6 +57,11 @@ const COMPANY_ADDRESS = "7-8/2 vgp lane, Dharmaraja koil street, Saidapet, Chenn
 const COMPANY_PHONE = "9176002530";
 const COMPANY_EMAIL = "info@yadhurtech.com";
 const COMPANY_WEBSITE = "yadhurtech.com";
+const BANK_NAME = "CITY UNION BANK, Saidapet";
+const BANK_ACCOUNT_NAME = "S. Kishor";
+const BANK_ACCOUNT_NUMBER = "500101013782072";
+const BANK_IFSC = "CIUB0000516";
+const QUOTE_VALIDITY_DAYS = 15;
 
 const EDGE_FUNCTION_URL =
   process.env.NEXT_PUBLIC_SUPABASE_FUNCTION_URL ??
@@ -83,62 +89,11 @@ const serviceTypeOptions = [
   "Other",
 ];
 
-const costSplit: Record<SoftwareType, CostItem[]> = {
-  "Web Application": [
-    { item: "Discovery & Planning", percent: 10 },
-    { item: "UI/UX Design", percent: 15 },
-    { item: "Frontend Development", percent: 25 },
-    { item: "Backend Development", percent: 25 },
-    { item: "Testing & QA", percent: 12 },
-    { item: "Deployment & Handover", percent: 8 },
-    { item: "Project Management", percent: 5 },
-  ],
-  "Mobile Application": [
-    { item: "Discovery & Planning", percent: 10 },
-    { item: "UI/UX Design", percent: 15 },
-    { item: "Mobile App Development", percent: 35 },
-    { item: "Backend & APIs", percent: 20 },
-    { item: "Testing & QA", percent: 10 },
-    { item: "Store Release & Handover", percent: 6 },
-    { item: "Project Management", percent: 4 },
-  ],
-  "SaaS Platform": [
-    { item: "Discovery & Product Strategy", percent: 12 },
-    { item: "UI/UX Design", percent: 12 },
-    { item: "Frontend Application", percent: 20 },
-    { item: "Backend & Architecture", percent: 28 },
-    { item: "Security, QA & Compliance", percent: 14 },
-    { item: "Deployment & DevOps", percent: 9 },
-    { item: "Project Management", percent: 5 },
-  ],
-  "E-commerce": [
-    { item: "Discovery & Catalog Planning", percent: 10 },
-    { item: "UI/UX Design", percent: 14 },
-    { item: "Storefront Development", percent: 24 },
-    { item: "Checkout, Payment & Logistics", percent: 22 },
-    { item: "Admin Panel & Reports", percent: 14 },
-    { item: "Testing & Launch", percent: 10 },
-    { item: "Project Management", percent: 6 },
-  ],
-  "CRM / ERP": [
-    { item: "Business Process Mapping", percent: 14 },
-    { item: "UI/UX Design", percent: 12 },
-    { item: "Core Modules Development", percent: 32 },
-    { item: "Integrations & Automation", percent: 18 },
-    { item: "Testing & User Training", percent: 12 },
-    { item: "Deployment & Support Setup", percent: 7 },
-    { item: "Project Management", percent: 5 },
-  ],
-  Custom: [
-    { item: "Discovery & Planning", percent: 12 },
-    { item: "UI/UX Design", percent: 12 },
-    { item: "Core Development", percent: 33 },
-    { item: "Integrations", percent: 15 },
-    { item: "Testing & QA", percent: 12 },
-    { item: "Launch & Handover", percent: 10 },
-    { item: "Project Management", percent: 6 },
-  ],
-};
+const pricingSplit: CostItem[] = [
+  { item: "App / Website", percent: 60 },
+  { item: "Admin Portal", percent: 25 },
+  { item: "UI/UX", percent: 15 },
+];
 
 const stackByType: Record<SoftwareType, { layer: string; technology: string }[]> = {
   "Web Application": [
@@ -193,6 +148,7 @@ const defaultInput: ProposalInput = {
   businessActivities: "",
   softwareType: "Web Application",
   serviceTypes: [],
+  paymentTerms: "40% advance, 40% mid-milestone, 20% on delivery",
   targetUsers: "",
   keyFeatures: "",
   projectFlow: "",
@@ -223,6 +179,8 @@ export default function Home() {
   const [proposalId, setProposalId] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [aiProposal, setAiProposal] = useState<AiProposal | null>(null);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [quoteIssuedAt, setQuoteIssuedAt] = useState<Date | null>(null);
 
   const localFeatureLines = useMemo(() => toLines(input.keyFeatures), [input.keyFeatures]);
   const localActivityLines = useMemo(() => toLines(input.businessActivities), [input.businessActivities]);
@@ -243,11 +201,11 @@ export default function Home() {
       : stackByType[input.softwareType];
 
   const costRows = useMemo(() => {
-    return costSplit[input.softwareType].map((entry) => ({
+    return pricingSplit.map((entry) => ({
       ...entry,
       amount: Math.round((input.budget * entry.percent) / 100),
     }));
-  }, [input.budget, input.softwareType]);
+  }, [input.budget]);
 
   function toggleServiceType(value: string) {
     setInput((prev) => {
@@ -273,12 +231,14 @@ export default function Home() {
     setStatusMessage("Generating AI proposal...");
     setAiProposal(null);
     setProposalId(null);
+    setQuoteIssuedAt(new Date());
 
     try {
+      const useFormData = attachments.length > 0;
       const response = await fetch(EDGE_FUNCTION_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
+        headers: useFormData ? undefined : { "Content-Type": "application/json" },
+        body: useFormData ? buildFormData(input, attachments) : JSON.stringify(input),
       });
 
       const payload = (await response.json()) as GenerateResponse;
@@ -310,6 +270,46 @@ export default function Home() {
     setTimeout(() => {
       document.title = originalTitle;
     }, 300);
+  }
+
+  const quoteValidUntil = useMemo(() => {
+    if (!quoteIssuedAt) {
+      return null;
+    }
+    const date = new Date(quoteIssuedAt);
+    date.setDate(date.getDate() + QUOTE_VALIDITY_DAYS);
+    return date;
+  }, [quoteIssuedAt]);
+
+  function formatDate(date: Date | null) {
+    if (!date) return "—";
+    return new Intl.DateTimeFormat("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(date);
+  }
+
+  function buildFormData(values: ProposalInput, files: File[]) {
+    const formData = new FormData();
+    formData.append("clientName", values.clientName);
+    formData.append("businessName", values.businessName);
+    formData.append("quickPrompt", values.quickPrompt);
+    formData.append("businessOverview", values.businessOverview);
+    formData.append("businessActivities", values.businessActivities);
+    formData.append("softwareType", values.softwareType);
+    formData.append("serviceTypes", JSON.stringify(values.serviceTypes));
+    formData.append("paymentTerms", values.paymentTerms);
+    formData.append("targetUsers", values.targetUsers);
+    formData.append("keyFeatures", values.keyFeatures);
+    formData.append("projectFlow", values.projectFlow);
+    formData.append("integrations", values.integrations);
+    formData.append("timelineWeeks", String(values.timelineWeeks));
+    formData.append("budget", String(values.budget));
+    files.forEach((file) => {
+      formData.append("files", file, file.name);
+    });
+    return formData;
   }
 
   return (
@@ -477,6 +477,29 @@ export default function Home() {
             />
           </label>
 
+          <label className="full">
+            Payment Terms (editable)
+            <input
+              value={input.paymentTerms}
+              onChange={(event) => updateField("paymentTerms", event.target.value)}
+              placeholder="40% advance, 40% mid-milestone, 20% on delivery"
+              required
+            />
+          </label>
+
+          <label className="full">
+            Upload Wireframes / Documents (PDF, images, Excel, docs)
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                setAttachments(files);
+              }}
+            />
+          </label>
+
           <div className="actions full">
             <button type="submit" className="primary-btn" disabled={isGenerating}>
               {isGenerating ? "Generating..." : "Generate Proposal"}
@@ -520,6 +543,8 @@ export default function Home() {
                 <p>
                   Prepared for <strong>{input.clientName}</strong> ({input.businessName})
                 </p>
+                <p>Issue Date: {formatDate(quoteIssuedAt)}</p>
+                <p>Valid Until: {formatDate(quoteValidUntil)}</p>
                 {proposalId && <p>Proposal ID: #{proposalId}</p>}
               </div>
             </header>
@@ -582,8 +607,7 @@ export default function Home() {
               <table>
                 <thead>
                   <tr>
-                    <th>Workstream</th>
-                    <th>Share</th>
+                    <th>Item</th>
                     <th>Amount</th>
                   </tr>
                 </thead>
@@ -591,7 +615,6 @@ export default function Home() {
                   {costRows.map((row) => (
                     <tr key={row.item}>
                       <td>{row.item}</td>
-                      <td>{row.percent}%</td>
                       <td>{currency(row.amount)}</td>
                     </tr>
                   ))}
@@ -662,6 +685,29 @@ export default function Home() {
                   </ul>
                 </div>
               </div>
+            </section>
+
+            <section>
+              <h3>Terms & Conditions</h3>
+              <ul>
+                <li>Quotation validity: {QUOTE_VALIDITY_DAYS} days from issue date.</li>
+                <li>Payment terms: {input.paymentTerms}.</li>
+                <li>Project timeline starts after advance payment and confirmation of requirements.</li>
+                <li>External services (hosting, VPS, domains, payment gateways, APIs, SMS/email, etc.) are to be purchased by the client and are not included in this quotation.</li>
+                <li>Any change in scope will be estimated and billed separately.</li>
+                <li>Refunds are not applicable once work has started. If canceled before work begins, refunds (if any) are considered case‑by‑case.</li>
+                <li>Source code and deliverables are handed over after final payment.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3>Bank Account Details</h3>
+              <ul>
+                <li>Bank: {BANK_NAME}</li>
+                <li>Account Name: {BANK_ACCOUNT_NAME}</li>
+                <li>Account No: {BANK_ACCOUNT_NUMBER}</li>
+                <li>IFSC: {BANK_IFSC}</li>
+              </ul>
             </section>
           </article>
         </section>
