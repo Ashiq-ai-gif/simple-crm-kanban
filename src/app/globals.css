@@ -457,6 +457,7 @@ textarea {
   overflow-x: auto;
   padding-bottom: 0.6rem;
   align-items: flex-start;
+  max-width: 100%;
 }
 
 .column {
@@ -464,9 +465,9 @@ textarea {
   border: 1px solid #d6e4f2;
   border-radius: 16px;
   padding: 0.8rem;
-  width: 280px;
-  min-width: 280px;
-  flex: 0 0 280px;
+  min-width: 240px;
+  max-width: 320px;
+  flex: 1 0 240px;
   min-height: 480px;
 }
 
