@@ -443,10 +443,11 @@ textarea {
 
 .kanban {
   display: flex;
+  flex-wrap: nowrap;
   gap: 1rem;
   overflow-x: auto;
   padding-bottom: 0.6rem;
-  align-items: stretch;
+  align-items: flex-start;
 }
 
 .column {
@@ -454,8 +455,9 @@ textarea {
   border: 1px solid #d6e4f2;
   border-radius: 16px;
   padding: 0.8rem;
-  min-width: 260px;
-  flex: 0 0 260px;
+  width: 280px;
+  min-width: 280px;
+  flex: 0 0 280px;
   min-height: 480px;
 }
 
