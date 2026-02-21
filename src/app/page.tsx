@@ -643,28 +643,22 @@ export default function Home() {
             </section>
 
             <section>
-              <h3>Assumptions & Risks</h3>
+              <h3>Delivery Highlights</h3>
               <div className="two-col">
                 <div>
-                  <h4>Assumptions</h4>
+                  <h4>Working Style</h4>
                   <ul>
-                    {(aiProposal?.assumptions ?? [
-                      "Client will provide timely feedback each sprint.",
-                      "Scope is aligned with approved feature list.",
-                    ]).map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
+                    <li>Weekly progress updates and demo checkpoints.</li>
+                    <li>Transparent backlog and sprint planning.</li>
+                    <li>Fast turnarounds on feedback and refinements.</li>
                   </ul>
                 </div>
                 <div>
-                  <h4>Risks</h4>
+                  <h4>Quality & Support</h4>
                   <ul>
-                    {(aiProposal?.risks ?? [
-                      "Third-party integration dependencies may affect timeline.",
-                      "Late scope changes can impact budget.",
-                    ]).map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
+                    <li>Structured QA with regression coverage.</li>
+                    <li>Secure deployment and handover documentation.</li>
+                    <li>Post‑launch support and optimization options.</li>
                   </ul>
                 </div>
               </div>
