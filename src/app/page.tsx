@@ -18,6 +18,7 @@ type ProposalInput = {
   businessOverview: string;
   businessActivities: string;
   softwareType: SoftwareType;
+  serviceTypes: string[];
   targetUsers: string;
   keyFeatures: string;
   projectFlow: string;
@@ -67,6 +68,19 @@ const softwareTypeOptions: SoftwareType[] = [
   "E-commerce",
   "CRM / ERP",
   "Custom",
+];
+
+const serviceTypeOptions = [
+  "Android App",
+  "iOS App",
+  "PWA",
+  "Website",
+  "Web Application",
+  "Backend/API",
+  "Admin Panel",
+  "Desktop App",
+  "Automation/Workflow",
+  "Other",
 ];
 
 const costSplit: Record<SoftwareType, CostItem[]> = {
@@ -178,6 +192,7 @@ const defaultInput: ProposalInput = {
   businessOverview: "",
   businessActivities: "",
   softwareType: "Web Application",
+  serviceTypes: [],
   targetUsers: "",
   keyFeatures: "",
   projectFlow: "",
@@ -233,6 +248,16 @@ export default function Home() {
       amount: Math.round((input.budget * entry.percent) / 100),
     }));
   }, [input.budget, input.softwareType]);
+
+  function toggleServiceType(value: string) {
+    setInput((prev) => {
+      const exists = prev.serviceTypes.includes(value);
+      const next = exists
+        ? prev.serviceTypes.filter((item) => item !== value)
+        : [...prev.serviceTypes, value];
+      return { ...prev, serviceTypes: next };
+    });
+  }
 
   function updateField<K extends keyof ProposalInput>(key: K, value: ProposalInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }));
@@ -370,6 +395,22 @@ export default function Home() {
             </select>
           </label>
 
+          <div className="full">
+            <p className="field-label">Required Platforms / Services</p>
+            <div className="checkbox-grid">
+              {serviceTypeOptions.map((option) => (
+                <label key={option} className="checkbox-pill">
+                  <input
+                    type="checkbox"
+                    checked={input.serviceTypes.includes(option)}
+                    onChange={() => toggleServiceType(option)}
+                  />
+                  <span>{option}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
           <label>
             Timeline (weeks)
             <input
@@ -499,6 +540,10 @@ export default function Home() {
                     <tr>
                       <th>Software Type</th>
                       <td>{input.softwareType}</td>
+                    </tr>
+                    <tr>
+                      <th>Platforms / Services</th>
+                      <td>{input.serviceTypes.length ? input.serviceTypes.join(", ") : "Not specified"}</td>
                     </tr>
                     <tr>
                       <th>Target Users</th>

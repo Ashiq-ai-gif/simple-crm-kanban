@@ -144,6 +144,34 @@ textarea {
   font-weight: 600;
 }
 
+.field-label {
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.5rem;
+}
+
+.checkbox-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid #d2dfed;
+  background: #f7fbff;
+  border-radius: 999px;
+  padding: 0.4rem 0.7rem;
+  font-weight: 600;
+  color: #1a3656;
+}
+
+.checkbox-pill input {
+  width: 16px;
+  height: 16px;
+}
+
 .full {
   grid-column: 1 / -1;
 }
