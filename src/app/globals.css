@@ -408,6 +408,15 @@ textarea {
   color: var(--muted);
 }
 
+.crm-toolbar {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.crm-search {
+  max-width: 380px;
+}
+
 .crm-card {
   display: grid;
   gap: 0.85rem;
@@ -461,10 +470,34 @@ textarea {
   min-height: 480px;
 }
 
-.column h3 {
+.column-head {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.column-head h3 {
+  font-size: 1rem;
+}
+
+.column-count {
+  font-weight: 700;
+  color: #1c3552;
+}
+
+.column-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: #dbe6f2;
+  overflow: hidden;
   margin-bottom: 0.6rem;
+}
+
+.column-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(120deg, #2a86c7, #1fb6b2);
 }
 
 .cards {

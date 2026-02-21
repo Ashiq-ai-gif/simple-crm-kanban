@@ -215,6 +215,7 @@ export default function Home() {
   const [stageList, setStageList] = useState<string[]>([]);
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [leadForm, setLeadForm] = useState(emptyLeadForm);
+  const [crmSearch, setCrmSearch] = useState("");
 
   const localFeatureLines = useMemo(() => toLines(input.keyFeatures), [input.keyFeatures]);
   const localActivityLines = useMemo(() => toLines(input.businessActivities), [input.businessActivities]);
@@ -917,6 +918,15 @@ export default function Home() {
               </button>
             </header>
 
+            <section className="crm-toolbar">
+              <input
+                className="crm-search"
+                value={crmSearch}
+                onChange={(event) => setCrmSearch(event.target.value)}
+                placeholder="Search leads..."
+              />
+            </section>
+
             <section className="card crm-card">
               <h2>Stages</h2>
               <div className="stage-editor">
@@ -964,16 +974,30 @@ export default function Home() {
             {crmLoading && <p className="loading-text">Loading CRM...</p>}
 
             <section className="kanban desktop-only">
-              {crmStages.map((stage) => (
+              {crmStages.map((stage) => {
+                const filtered = crmLeads.filter((lead) => {
+                  const term = crmSearch.trim().toLowerCase();
+                  const matchesSearch = term
+                    ? [lead.name, lead.email, lead.company, lead.phone, lead.notes]
+                        .join(" ")
+                        .toLowerCase()
+                        .includes(term)
+                    : true;
+                  return lead.status === stage && matchesSearch;
+                });
+                const total = crmLeads.length || 1;
+                const percent = Math.min(100, Math.round((filtered.length / total) * 100));
+                return (
                 <article key={stage} className="column">
-                  <h3>
-                    <span>{stage}</span>
-                    <span>{crmLeads.filter((lead) => lead.status === stage).length}</span>
-                  </h3>
+                  <div className="column-head">
+                    <h3>{stage}</h3>
+                    <span className="column-count">{filtered.length}</span>
+                  </div>
+                  <div className="column-bar">
+                    <span style={{ width: `${percent}%` }} />
+                  </div>
                   <div className="cards">
-                    {crmLeads
-                      .filter((lead) => lead.status === stage)
-                      .map((lead) => (
+                    {filtered.map((lead) => (
                         <div key={lead.id} className="card">
                           <div className="card-head">
                             <h4>{lead.name}</h4>
@@ -998,7 +1022,7 @@ export default function Home() {
                       ))}
                   </div>
                 </article>
-              ))}
+              })}
             </section>
 
             <section className="mobile-only mobile-list-wrap">
