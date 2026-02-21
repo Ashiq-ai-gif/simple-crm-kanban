@@ -48,6 +48,13 @@ type GenerateResponse = {
   ok: boolean;
   proposalId?: number | null;
   ai?: AiProposal;
+  extracted?: Partial<ProposalInput> & {
+    businessActivities?: string[];
+    keyFeatures?: string[];
+    projectFlow?: string[];
+    integrations?: string[];
+    serviceTypes?: string[];
+  };
   error?: string;
 };
 
@@ -247,6 +254,49 @@ export default function Home() {
       }
 
       setAiProposal(payload.ai);
+      if (payload.extracted) {
+        setInput((prev) => {
+          const next = { ...prev };
+          const extracted = payload.extracted ?? {};
+          const applyIfEmpty = <K extends keyof ProposalInput>(key: K, value?: ProposalInput[K]) => {
+            if (value === undefined || value === null) return;
+            const current = prev[key];
+            if (
+              current === "" ||
+              current === 0 ||
+              (Array.isArray(current) && current.length === 0)
+            ) {
+              next[key] = value;
+            }
+          };
+          applyIfEmpty("clientName", extracted.clientName);
+          applyIfEmpty("businessName", extracted.businessName);
+          applyIfEmpty("softwareType", extracted.softwareType);
+          applyIfEmpty("serviceTypes", extracted.serviceTypes);
+          applyIfEmpty("targetUsers", extracted.targetUsers);
+          applyIfEmpty("businessOverview", extracted.businessOverview);
+          applyIfEmpty(
+            "businessActivities",
+            extracted.businessActivities ? extracted.businessActivities.join("\n") : undefined,
+          );
+          applyIfEmpty(
+            "keyFeatures",
+            extracted.keyFeatures ? extracted.keyFeatures.join("\n") : undefined,
+          );
+          applyIfEmpty(
+            "projectFlow",
+            extracted.projectFlow ? extracted.projectFlow.join("\n") : undefined,
+          );
+          applyIfEmpty(
+            "integrations",
+            extracted.integrations ? extracted.integrations.join("\n") : undefined,
+          );
+          applyIfEmpty("paymentTerms", extracted.paymentTerms);
+          applyIfEmpty("timelineWeeks", extracted.timelineWeeks as ProposalInput["timelineWeeks"]);
+          applyIfEmpty("budget", extracted.budget as ProposalInput["budget"]);
+          return next;
+        });
+      }
       setProposalId(payload.proposalId ?? null);
       setStatusMessage("Proposal generated and saved.");
       setIsGenerated(true);
