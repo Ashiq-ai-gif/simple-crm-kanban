@@ -442,13 +442,11 @@ textarea {
 }
 
 .kanban {
-  display: grid;
-  gap: 0.8rem;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(260px, 1fr);
+  display: flex;
+  gap: 1rem;
   overflow-x: auto;
   padding-bottom: 0.6rem;
-  scroll-snap-type: x mandatory;
+  align-items: stretch;
 }
 
 .column {
@@ -456,8 +454,9 @@ textarea {
   border: 1px solid #d6e4f2;
   border-radius: 16px;
   padding: 0.8rem;
-  min-height: 360px;
-  scroll-snap-align: start;
+  min-width: 260px;
+  flex: 0 0 260px;
+  min-height: 480px;
 }
 
 .column h3 {
@@ -469,6 +468,9 @@ textarea {
 .cards {
   display: grid;
   gap: 0.6rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 0.2rem;
 }
 
 .card {
