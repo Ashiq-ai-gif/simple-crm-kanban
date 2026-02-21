@@ -1,12 +1,12 @@
-export const LEAD_STATUSES = [
+export const DEFAULT_STAGES = [
   "New",
   "Qualified",
   "Proposal",
   "Won",
   "Lost",
-] as const;
+];
 
-export type LeadStatus = (typeof LEAD_STATUSES)[number];
+export type LeadStatus = string;
 
 export type Lead = {
   id: string;
@@ -27,4 +27,5 @@ export type DeletedLead = Lead & {
 export type CrmDB = {
   leads: Lead[];
   deletedLeads: DeletedLead[];
+  stages: string[];
 };

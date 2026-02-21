@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
-import { deleteLead, updateLead } from "@/lib/db";
-import { LEAD_STATUSES } from "@/lib/types";
+import { deleteLead, readDB, updateLead } from "@/lib/db";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
-  if (body.status && !LEAD_STATUSES.includes(body.status)) {
-    return NextResponse.json({ error: "invalid status" }, { status: 400 });
+  if (body.status) {
+    const db = await readDB();
+    if (!db.stages.includes(body.status)) {
+      return NextResponse.json({ error: "invalid status" }, { status: 400 });
+    }
   }
 
   const updated = await updateLead(id, body);

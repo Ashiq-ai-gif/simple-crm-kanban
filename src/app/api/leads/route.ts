@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createLead, readDB } from "@/lib/db";
-import { LEAD_STATUSES } from "@/lib/types";
 
 export async function GET() {
   const db = await readDB();
@@ -16,7 +15,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const status = LEAD_STATUSES.includes(body.status) ? body.status : "New";
+  const db = await readDB();
+  const status = db.stages.includes(body.status) ? body.status : db.stages[0];
   const lead = await createLead({
     name: String(body.name),
     email: String(body.email),

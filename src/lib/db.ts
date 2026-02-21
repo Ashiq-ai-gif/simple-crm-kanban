@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { CrmDB, DeletedLead, Lead, LeadStatus } from "@/lib/types";
+import { CrmDB, DeletedLead, Lead, LeadStatus, DEFAULT_STAGES } from "@/lib/types";
 import {
   isGoogleSheetsConfigured,
   readGoogleSheetsDB,
@@ -36,6 +36,7 @@ const initialLeads: Lead[] = [
 const defaultDB: CrmDB = {
   leads: initialLeads,
   deletedLeads: [],
+  stages: DEFAULT_STAGES,
 };
 
 function getDbPath() {
@@ -65,7 +66,12 @@ export async function readDB(): Promise<CrmDB> {
   }
   const dbPath = await ensureDB();
   const content = await readFile(dbPath, "utf8");
-  return JSON.parse(content) as CrmDB;
+  const parsed = JSON.parse(content) as CrmDB;
+  if (!parsed.stages || parsed.stages.length === 0) {
+    parsed.stages = DEFAULT_STAGES;
+    await writeDB(parsed);
+  }
+  return parsed;
 }
 
 export async function writeDB(db: CrmDB) {
@@ -82,8 +88,10 @@ export async function createLead(
 ) {
   const db = await readDB();
   const now = new Date().toISOString();
+  const safeStatus = db.stages.includes(input.status) ? input.status : db.stages[0];
   const lead: Lead = {
     ...input,
+    status: safeStatus,
     id: randomUUID(),
     createdAt: now,
     updatedAt: now,
@@ -137,13 +145,7 @@ export async function deleteLead(id: string) {
 export async function importLeads(records: Array<Partial<Lead>>) {
   const db = await readDB();
   const now = new Date().toISOString();
-  const acceptedStatuses = new Set<LeadStatus>([
-    "New",
-    "Qualified",
-    "Proposal",
-    "Won",
-    "Lost",
-  ]);
+  const acceptedStatuses = new Set<LeadStatus>(db.stages);
 
   let upserted = 0;
   for (const record of records) {
@@ -152,7 +154,7 @@ export async function importLeads(records: Array<Partial<Lead>>) {
     }
     const status = acceptedStatuses.has(record.status as LeadStatus)
       ? (record.status as LeadStatus)
-      : "New";
+      : db.stages[0];
     const existing = db.leads.find((item) => item.email === record.email);
     if (existing) {
       existing.name = record.name;

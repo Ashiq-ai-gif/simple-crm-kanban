@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { CrmDB, DeletedLead, Lead } from "@/lib/types";
+import { CrmDB, DeletedLead, Lead, DEFAULT_STAGES } from "@/lib/types";
 
 type SheetConfig = {
   email: string;
@@ -146,7 +146,7 @@ export async function readGoogleSheetsDB(): Promise<CrmDB | null> {
     .map((row) => normalizeDeletedRow(row))
     .filter((lead) => Boolean(lead.email));
 
-  return { leads, deletedLeads };
+  return { leads, deletedLeads, stages: DEFAULT_STAGES };
 }
 
 export async function syncToGoogleSheets(leads: Lead[], deletedLeads: DeletedLead[]) {

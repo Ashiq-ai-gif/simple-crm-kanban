@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Lead } from "@/lib/types";
 
 type SoftwareType =
   | "Web Application"
@@ -56,6 +57,12 @@ type GenerateResponse = {
     serviceTypes?: string[];
   };
   error?: string;
+};
+
+type CrmPayload = {
+  leads: Lead[];
+  deletedLeads: Lead[];
+  stages: string[];
 };
 
 const COMPANY_NAME = "Yadhurtech";
@@ -164,6 +171,15 @@ const defaultInput: ProposalInput = {
   budget: 12000,
 };
 
+const emptyLeadForm = {
+  name: "",
+  email: "",
+  phone: "",
+  company: "",
+  notes: "",
+  status: "New",
+};
+
 function toLines(value: string) {
   return value
     .split("\n")
@@ -188,6 +204,17 @@ export default function Home() {
   const [aiProposal, setAiProposal] = useState<AiProposal | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [quoteIssuedAt, setQuoteIssuedAt] = useState<Date | null>(null);
+  const [activeView, setActiveView] = useState<"quotation" | "crm">("quotation");
+
+  const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
+  const [crmStages, setCrmStages] = useState<string[]>([]);
+  const [crmLoading, setCrmLoading] = useState(false);
+  const [crmMessage, setCrmMessage] = useState("");
+  const [mobileStage, setMobileStage] = useState<string>("All");
+  const [stageDraft, setStageDraft] = useState("");
+  const [stageList, setStageList] = useState<string[]>([]);
+  const [showLeadModal, setShowLeadModal] = useState(false);
+  const [leadForm, setLeadForm] = useState(emptyLeadForm);
 
   const localFeatureLines = useMemo(() => toLines(input.keyFeatures), [input.keyFeatures]);
   const localActivityLines = useMemo(() => toLines(input.businessActivities), [input.businessActivities]);
@@ -362,9 +389,122 @@ export default function Home() {
     return formData;
   }
 
+  async function loadCrm() {
+    setCrmLoading(true);
+    try {
+      const response = await fetch("/api/leads", { cache: "no-store" });
+      const payload = (await response.json()) as CrmPayload;
+      setCrmLeads(payload.leads ?? []);
+      setCrmStages(payload.stages ?? []);
+      setStageList(payload.stages ?? []);
+      setMobileStage("All");
+      setCrmMessage("");
+    } catch {
+      setCrmMessage("Failed to load CRM data.");
+    } finally {
+      setCrmLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeView === "crm") {
+      void loadCrm();
+    }
+  }, [activeView]);
+
+  async function saveStages() {
+    if (stageList.length === 0) {
+      setCrmMessage("Add at least one stage.");
+      return;
+    }
+    const response = await fetch("/api/stages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stages: stageList }),
+    });
+    if (!response.ok) {
+      setCrmMessage("Failed to save stages.");
+      return;
+    }
+    await loadCrm();
+  }
+
+  async function onCreateLead(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const response = await fetch("/api/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(leadForm),
+    });
+    if (!response.ok) {
+      setCrmMessage("Create failed. Name and email are required.");
+      return;
+    }
+    setLeadForm(emptyLeadForm);
+    setShowLeadModal(false);
+    await loadCrm();
+  }
+
+  async function onDeleteLead(id: string) {
+    const response = await fetch(`/api/leads/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      setCrmMessage("Delete failed.");
+      return;
+    }
+    await loadCrm();
+  }
+
+  async function onChangeStatus(id: string, status: string) {
+    const response = await fetch(`/api/leads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (!response.ok) {
+      setCrmMessage("Stage update failed.");
+      return;
+    }
+    await loadCrm();
+  }
+
   return (
-    <main className="proposal-shell">
-      <header className="hero no-print">
+    <div className="app-layout">
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <Image
+            src="/yadhurtech-logo.jpeg"
+            alt={`${COMPANY_NAME} logo`}
+            className="brand-logo"
+            width={52}
+            height={52}
+          />
+          <div>
+            <p className="brand-name">{COMPANY_NAME}</p>
+            <p className="brand-tagline">{COMPANY_TAGLINE}</p>
+          </div>
+        </div>
+        <nav className="nav-list">
+          <button
+            type="button"
+            className={`nav-item ${activeView === "quotation" ? "active" : ""}`}
+            onClick={() => setActiveView("quotation")}
+          >
+            Quotation
+          </button>
+          <button
+            type="button"
+            className={`nav-item ${activeView === "crm" ? "active" : ""}`}
+            onClick={() => setActiveView("crm")}
+          >
+            CRM
+          </button>
+        </nav>
+      </aside>
+
+      <main className="content-area">
+        {activeView === "quotation" && (
+          <section className="proposal-shell">
+            <header className="hero no-print">
         <div className="brand-block">
           <Image
             src="/yadhurtech-logo.jpeg"
@@ -762,6 +902,207 @@ export default function Home() {
           </article>
         </section>
       )}
-    </main>
+          </section>
+        )}
+
+        {activeView === "crm" && (
+          <section className="crm-shell">
+            <header className="crm-header">
+              <div>
+                <h1>CRM Kanban</h1>
+                <p>Manage leads by stage with a desktop kanban and mobile list view.</p>
+              </div>
+              <button className="primary-btn" onClick={() => setShowLeadModal(true)}>
+                + New Lead
+              </button>
+            </header>
+
+            <section className="card crm-card">
+              <h2>Stages</h2>
+              <div className="stage-editor">
+                <input
+                  value={stageDraft}
+                  onChange={(event) => setStageDraft(event.target.value)}
+                  placeholder="Add stage (e.g., Discovery)"
+                />
+                <button
+                  className="secondary-btn"
+                  type="button"
+                  onClick={() => {
+                    const next = stageDraft.trim();
+                    if (!next) return;
+                    if (stageList.includes(next)) return;
+                    setStageList((prev) => [...prev, next]);
+                    setStageDraft("");
+                  }}
+                >
+                  Add Stage
+                </button>
+                <button className="primary-btn" type="button" onClick={saveStages}>
+                  Save Stages
+                </button>
+              </div>
+              <div className="stage-chips">
+                {stageList.map((stage) => (
+                  <span key={stage} className="stage-chip">
+                    {stage}
+                    <button
+                      type="button"
+                      className="text-btn"
+                      onClick={() =>
+                        setStageList((prev) => prev.filter((item) => item !== stage))
+                      }
+                    >
+                      Remove
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </section>
+
+            {crmMessage && <p className="status-text">{crmMessage}</p>}
+            {crmLoading && <p className="loading-text">Loading CRM...</p>}
+
+            <section className="kanban desktop-only">
+              {crmStages.map((stage) => (
+                <article key={stage} className="column">
+                  <h3>
+                    <span>{stage}</span>
+                    <span>{crmLeads.filter((lead) => lead.status === stage).length}</span>
+                  </h3>
+                  <div className="cards">
+                    {crmLeads
+                      .filter((lead) => lead.status === stage)
+                      .map((lead) => (
+                        <div key={lead.id} className="card">
+                          <div className="card-head">
+                            <h4>{lead.name}</h4>
+                            <button className="danger-btn" onClick={() => onDeleteLead(lead.id)}>
+                              Delete
+                            </button>
+                          </div>
+                          <p>{lead.company || "No company"}</p>
+                          <p>{lead.email}</p>
+                          {lead.phone && <p>{lead.phone}</p>}
+                          <select
+                            value={lead.status}
+                            onChange={(event) => onChangeStatus(lead.id, event.target.value)}
+                          >
+                            {crmStages.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                  </div>
+                </article>
+              ))}
+            </section>
+
+            <section className="mobile-only mobile-list-wrap">
+              <div className="mobile-filter-bar">
+                <label htmlFor="stage-filter">Stage</label>
+                <select
+                  id="stage-filter"
+                  value={mobileStage}
+                  onChange={(event) => setMobileStage(event.target.value)}
+                >
+                  <option value="All">All</option>
+                  {crmStages.map((stage) => (
+                    <option key={stage} value={stage}>
+                      {stage}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <section className="mobile-list">
+                {crmLeads
+                  .filter((lead) => (mobileStage === "All" ? true : lead.status === mobileStage))
+                  .map((lead) => (
+                    <article key={lead.id} className="list-item">
+                      <div>
+                        <h4>{lead.name}</h4>
+                        <p>{lead.company || "No company"}</p>
+                        <small>{lead.email}</small>
+                      </div>
+                      <select
+                        value={lead.status}
+                        onChange={(event) => onChangeStatus(lead.id, event.target.value)}
+                      >
+                        {crmStages.map((stage) => (
+                          <option key={stage} value={stage}>
+                            {stage}
+                          </option>
+                        ))}
+                      </select>
+                      <button className="danger-btn" onClick={() => onDeleteLead(lead.id)}>
+                        Delete
+                      </button>
+                    </article>
+                  ))}
+              </section>
+            </section>
+
+            {showLeadModal && (
+              <div className="modal-backdrop" onClick={() => setShowLeadModal(false)}>
+                <div className="modal modal-animate" onClick={(event) => event.stopPropagation()}>
+                  <div className="modal-head">
+                    <h2>New Lead</h2>
+                    <button className="text-btn" onClick={() => setShowLeadModal(false)}>
+                      Close
+                    </button>
+                  </div>
+                  <form onSubmit={onCreateLead} className="lead-form">
+                    <input
+                      placeholder="Name"
+                      value={leadForm.name}
+                      onChange={(event) => setLeadForm({ ...leadForm, name: event.target.value })}
+                      required
+                    />
+                    <input
+                      placeholder="Email"
+                      value={leadForm.email}
+                      onChange={(event) => setLeadForm({ ...leadForm, email: event.target.value })}
+                      required
+                    />
+                    <input
+                      placeholder="Phone"
+                      value={leadForm.phone}
+                      onChange={(event) => setLeadForm({ ...leadForm, phone: event.target.value })}
+                    />
+                    <input
+                      placeholder="Company"
+                      value={leadForm.company}
+                      onChange={(event) => setLeadForm({ ...leadForm, company: event.target.value })}
+                    />
+                    <select
+                      value={leadForm.status}
+                      onChange={(event) => setLeadForm({ ...leadForm, status: event.target.value })}
+                    >
+                      {crmStages.map((stage) => (
+                        <option key={stage} value={stage}>
+                          {stage}
+                        </option>
+                      ))}
+                    </select>
+                    <textarea
+                      placeholder="Notes"
+                      value={leadForm.notes}
+                      onChange={(event) => setLeadForm({ ...leadForm, notes: event.target.value })}
+                    />
+                    <button className="primary-btn" type="submit">
+                      Save Lead
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+      </main>
+    </div>
   );
 }
