@@ -303,7 +303,13 @@ export default function Home() {
   }
 
   function onPrintPdf() {
+    const originalTitle = document.title;
+    const safeClient = input.clientName.trim() || "Client";
+    document.title = `${COMPANY_NAME}-Proposal-${safeClient}`;
     window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 300);
   }
 
   return (
