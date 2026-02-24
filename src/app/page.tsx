@@ -26,6 +26,8 @@ type ProposalInput = {
   integrations: string;
   timelineWeeks: number;
   budget: number;
+  hasDiscount: boolean;
+  discountPercentage: number;
 };
 
 type CostItem = {
@@ -163,6 +165,8 @@ const defaultInput: ProposalInput = {
   integrations: "",
   timelineWeeks: 12,
   budget: 12000,
+  hasDiscount: false,
+  discountPercentage: 10,
 };
 
 function toLines(value: string) {
@@ -303,8 +307,7 @@ export default function Home() {
       setIsGenerated(true);
     } catch (error) {
       setStatusMessage(
-        `AI unavailable, showing form-based draft. ${
-          error instanceof Error ? error.message : ""
+        `AI unavailable, showing form-based draft. ${error instanceof Error ? error.message : ""
         }`,
       );
       setIsGenerated(true);
@@ -357,6 +360,8 @@ export default function Home() {
     formData.append("integrations", values.integrations);
     formData.append("timelineWeeks", String(values.timelineWeeks));
     formData.append("budget", String(values.budget));
+    formData.append("hasDiscount", String(values.hasDiscount));
+    formData.append("discountPercentage", String(values.discountPercentage));
     files.forEach((file) => {
       formData.append("files", file, file.name);
     });
@@ -539,6 +544,29 @@ export default function Home() {
             />
           </label>
 
+          <div className="full discount-section">
+            <label className="checkbox-pill">
+              <input
+                type="checkbox"
+                checked={input.hasDiscount}
+                onChange={() => updateField("hasDiscount", !input.hasDiscount)}
+              />
+              <span>Early Payment Discount (2-day window)</span>
+            </label>
+            {input.hasDiscount && (
+              <label className="discount-input">
+                Percentage (%)
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={input.discountPercentage}
+                  onChange={(event) => updateField("discountPercentage", Number(event.target.value) || 0)}
+                />
+              </label>
+            )}
+          </div>
+
           <label className="full">
             Upload Wireframes / Documents (PDF, images, Excel, docs)
             <input
@@ -570,6 +598,15 @@ export default function Home() {
           </div>
 
           <article className="proposal-paper">
+            <div className="watermark">
+              <Image
+                src="/yadhurtech-logo.jpeg"
+                alt="Watermark"
+                width={500}
+                height={500}
+                priority
+              />
+            </div>
             <header className="paper-head">
               <div className="paper-brand">
                 <Image
@@ -744,6 +781,13 @@ export default function Home() {
               <ul>
                 <li>Quotation validity: {QUOTE_VALIDITY_DAYS} days from issue date.</li>
                 <li>Payment terms: {input.paymentTerms}.</li>
+                {input.hasDiscount && (
+                  <li>
+                    <strong>Early Payment Benefit:</strong> A {input.discountPercentage}% discount
+                    will be applied to the total budget if the advance payment is completed within 2
+                    days of the quote issue date ({formatDate(quoteIssuedAt)}).
+                  </li>
+                )}
                 <li>Project timeline starts after advance payment and confirmation of requirements.</li>
                 <li>External services (hosting, VPS, domains, payment gateways, APIs, SMS/email, etc.) are to be purchased by the client and are not included in this quotation.</li>
                 <li>Any change in scope will be estimated and billed separately.</li>
@@ -760,6 +804,17 @@ export default function Home() {
                 <li>Account No: {BANK_ACCOUNT_NUMBER}</li>
                 <li>IFSC: {BANK_IFSC}</li>
               </ul>
+            </section>
+
+            <section className="page-break footer-page">
+              <div className="thank-you-block">
+                <h2>THANK YOU!</h2>
+                <p>We look forward to working with you.</p>
+                <div className="signature-line">
+                  <p>Authorized Signatory</p>
+                  <p><strong>{COMPANY_NAME}</strong></p>
+                </div>
+              </div>
             </section>
           </article>
         </section>
